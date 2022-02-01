@@ -23,8 +23,8 @@ ccl[0]="${CMAKE_C_COMPILER}"
 cfg_vars["CC"] = " ".join(ccl)
 cxxl=cfg_vars["CXX"].split()
 cxxl[0]="${CMAKE_CXX_COMPILER}"
-cfg_vars["CXX"] = " ".join(cxxl)
-cfg_vars["PY_CXXFLAGS"] = "${CMAKE_CXX_FLAGS}"
+cfg_vars["CXX"] = " ".join(cxxl) + " -std=c++17"
+cfg_vars["PY_CXXFLAGS"] = "${CMAKE_CXX_FLAGS}" + " -std=c++17"
 
 # Make the RPATH relative to the python module
 cfg_vars['LDSHARED'] = cfg_vars['LDSHARED'] + " -Wl,-rpath,${XRDCL_RPATH}"

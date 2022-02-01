@@ -13,6 +13,7 @@ cfg_vars["OPT"] = " ".join( flag for flag in opt.split() if flag not in ['-Wstri
 
 cflags = cfg_vars["CFLAGS"]
 cfg_vars["CFLAGS"] = " ".join( flag for flag in cflags.split() if flag not in ['-Wstrict-prototypes'  ] )
+cfg_vars["CFLAGS"] += " -std=c++17"
 
 py_cflags = cfg_vars["PY_CFLAGS"]
 cfg_vars["PY_CFLAGS"] = " ".join( flag for flag in py_cflags.split() if flag not in ['-Wstrict-prototypes'  ] )

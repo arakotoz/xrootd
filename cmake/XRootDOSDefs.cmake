@@ -18,7 +18,7 @@ set( LIBRARY_PATH_PREFIX "lib" )
 #-------------------------------------------------------------------------------
 # Enable c++14
 #-------------------------------------------------------------------------------
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 
 if( ENABLE_ASAN )
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -fsanitize=address")
@@ -29,6 +29,7 @@ endif()
 # Note: once we move to c++14 globaly we can remove this
 #-------------------------------------------------------------------------------
 if( CMAKE_CXX_COMPILER_ID STREQUAL "Clang" )
+set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror -std=c++17" )
   set( XrdClPipelines TRUE )
 endif()
 
