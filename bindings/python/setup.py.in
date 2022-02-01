@@ -12,22 +12,20 @@ opt = cfg_vars["OPT"]
 cfg_vars["OPT"] = " ".join( flag for flag in opt.split() if flag not in ['-Wstrict-prototypes' ${CLANG_PROHIBITED} ] )
 
 cflags = cfg_vars["CFLAGS"]
-cfg_vars["CFLAGS"] = " ".join( flag for flag in cflags.split() if flag not in ['-Wstrict-prototypes' ${CLANG_PROHIBITED} ] )
-cfg_vars["CFLAGS"] += " -std=c++17"
+cfg_vars["CFLAGS"] = "${CMAKE_C_FLAGS}" + " -std=c++17"
 
 # pypy doesn't define PY_CFLAGS so skip it if it's missing
 if "PY_CFLAGS" in cfg_vars:
   py_cflags = cfg_vars["PY_CFLAGS"]
-  cfg_vars["PY_CFLAGS"] = " ".join( flag for flag in py_cflags.split() if flag not in ['-Wstrict-prototypes' ${CLANG_PROHIBITED} ] )
-  cfg_vars["PY_CFLAGS"] += " -std=c++17"
+  cfg_vars["PY_CFLAGS"] = "${CMAKE_C_FLAGS}" + " -std=c++17"
 
 ccl=cfg_vars["CC"].split()
 ccl[0]="${CMAKE_C_COMPILER}"
 cfg_vars["CC"] = " ".join(ccl)
 cxxl=cfg_vars["CXX"].split()
 cxxl[0]="${CMAKE_CXX_COMPILER}"
-cfg_vars["CXX"] = " ".join(cxxl) + " -std=c++17"
-cfg_vars["PY_CXXFLAGS"] = "${CMAKE_CXX_FLAGS}" + " -std=c++17"
+cfg_vars["CXX"] = " ".join(cxxl)
+cfg_vars["PY_CXXFLAGS"] = "${CMAKE_CXX_FLAGS}"
 
 # Make the RPATH relative to the python module
 cfg_vars['LDSHARED'] = cfg_vars['LDSHARED'] + " -Wl,-rpath,${XRDCL_RPATH}"
