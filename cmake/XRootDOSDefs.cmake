@@ -29,7 +29,7 @@ endif()
 # Note: once we move to c++14 globaly we can remove this
 #-------------------------------------------------------------------------------
 if( CMAKE_CXX_COMPILER_ID STREQUAL "Clang" )
-set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17" )
+  set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17" )
   set( XrdClPipelines TRUE )
 endif()
 
@@ -99,7 +99,7 @@ if( APPLE )
   endif()
 
   # this is here because of Apple deprecating openssl and krb5
-  set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-declarations" )
+  set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-declarations -std=c++17" )
 
   add_definitions( -DLT_MODULE_EXT=".dylib" )
   set( CMAKE_INSTALL_LIBDIR "lib" )
