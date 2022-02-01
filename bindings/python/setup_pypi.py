@@ -1,3 +1,4 @@
+from __future__ import print_function
 from setuptools import setup
 from distutils.core import Extension
 from distutils import sysconfig
@@ -38,9 +39,9 @@ def getincdir():
 xrdlibdir = getenv( 'XRD_LIBDIR' ) or getlibdir()
 xrdincdir = getenv( 'XRD_INCDIR' ) or getincdir()
 
-print 'XRootD library dir: ', xrdlibdir
-print 'XRootD include dir: ', xrdincdir
-print 'Version:            ', version
+print('XRootD library dir: ', xrdlibdir)
+print('XRootD include dir: ', xrdincdir)
+print('Version:            ', version)
 
 setup( name             = 'xrootd',
        version          = version,
