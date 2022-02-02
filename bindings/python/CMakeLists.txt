@@ -32,11 +32,11 @@ endif()
 
 configure_file(${SETUP_PY_IN} ${SETUP_PY})
 
-add_custom_command(OUTPUT ${OUTPUT}
-                   COMMAND ${PYTHON_EXECUTABLE} ${SETUP_PY} build
-                   DEPENDS ${DEPS})
+#add_custom_command(OUTPUT ${OUTPUT}
+#                   COMMAND ${PYTHON_EXECUTABLE} ${SETUP_PY} build
+#                   DEPENDS ${DEPS})
 
-add_custom_target(python_target ALL DEPENDS ${OUTPUT} XrdCl)
+#add_custom_target(python_target ALL DEPENDS ${OUTPUT} XrdCl)
 
 # Get the distribution name on Debian families
 execute_process( COMMAND grep -i ^NAME=\" /etc/os-release
@@ -50,7 +50,10 @@ if( DEB_DISTRO STREQUAL "Debian" OR DEB_DISTRO STREQUAL "Ubuntu" )
 endif()
 
 install(
-  CODE
-  "EXECUTE_PROCESS(
-    COMMAND ${PYTHON_EXECUTABLE} ${SETUP_PY} install --prefix \$ENV{DESTDIR}/${CMAKE_INSTALL_PREFIX} ${DEB_INSTALL_ARGS} --record PYTHON_INSTALLED)" )
+  CODE "
+    EXECUTE_PROCESS(
+      COMMAND ${PYTHON_EXECUTABLE} ${SETUP_PY} build_ext)
+    EXECUTE_PROCESS(
+      COMMAND ${PYTHON_EXECUTABLE} ${SETUP_PY} install --prefix \$ENV{DESTDIR}/${CMAKE_INSTALL_PREFIX} ${DEB_INSTALL_ARGS} --record PYTHON_INSTALLED)" 
+)
 

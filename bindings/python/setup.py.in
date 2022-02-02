@@ -1,6 +1,5 @@
 from __future__ import print_function
-from setuptools import setup
-from distutils.core import Extension
+from distutils.core import setup, Extension
 from distutils import sysconfig
 from os import getenv, walk, path, getcwd, chdir
 import sys
@@ -81,8 +80,9 @@ setup( name             = 'xrootd',
                'pyxrootd.client',
                sources   = sources,
                depends   = depends,
+               language  = 'c++',
                libraries = ['XrdCl', 'XrdUtils', 'dl'],
-               extra_compile_args = ['-g'],
+               extra_compile_args = ['-fPIC', '-O2', '-std=c++17', '-Wno-error'],
                include_dirs = [xrdsrcincdir, xrdbinincdir],
                library_dirs = [xrdlibdir, xrdcllibdir]
                )
