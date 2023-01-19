@@ -83,6 +83,7 @@ if ( NOT ${VALID_PIP_EXIT_CODE} EQUAL 0 )
   install(
     CODE
     "EXECUTE_PROCESS(
+      COMMAND_ECHO STDOUT
       RESULT_VARIABLE INSTALL_STATUS
       COMMAND /usr/bin/env ${XROOTD_PYBUILD_ENV} ${PYTHON_EXECUTABLE} ${SETUP_PY} install \
                 --verbose \
@@ -97,6 +98,7 @@ else()
   install(
     CODE
     "EXECUTE_PROCESS(
+      COMMAND_ECHO STDOUT
       RESULT_VARIABLE INSTALL_STATUS
       COMMAND /usr/bin/env ${XROOTD_PYBUILD_ENV} ${PYTHON_EXECUTABLE} -m pip install \
                 ${PIP_OPTIONS} \
