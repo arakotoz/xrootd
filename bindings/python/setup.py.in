@@ -37,6 +37,12 @@ cfg_vars["PY_CXXFLAGS"] = "${CMAKE_CXX_FLAGS}"
 # Make the RPATH relative to the python module
 cfg_vars['LDSHARED'] = cfg_vars['LDSHARED'] + " -Wl,-rpath,${XRDCL_RPATH}"
 
+print('cfg_vars["CC"] = ', cfg_vars["CC"])
+print('cfg_vars["CXX"] = ', cfg_vars["CXX"])
+print('cfg_vars["PY_CFLAGS"] = ', cfg_vars["PY_CFLAGS"])
+print('cfg_vars["PY_CPPFLAGS"] = ', cfg_vars["PY_CPPFLAGS"])
+print('cfg_vars["LDSHARED"] = ', cfg_vars["LDSHARED"])
+
 sources = list()
 depends = list()
 
