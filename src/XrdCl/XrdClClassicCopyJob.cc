@@ -1798,9 +1798,13 @@ namespace
         {
           std::string targeturl;
           pFile->GetProperty( "LastURL", targeturl );
+          targeturl = URL( targeturl ).GetLocation();
           if( symlink( targeturl.c_str(), cptarget.c_str() ) == -1 )
             log->Warning( UtilityMsg, "Could not create cp-target symlink: %s",
                           XrdSysE2T( errno ) );
+          else
+            log->Info( UtilityMsg, "Created cp-target symlink: %s -> %s",
+                       cptarget.c_str(), targeturl.c_str() );
         }
 
         StatInfo *info = 0;
@@ -2456,7 +2460,7 @@ namespace XrdCl
     pProperties->Get( "xcpBlockSize",    blockSize );
     pProperties->Get( "preserveXAttr",   preserveXAttr );
     pProperties->Get( "xrate",           xRate );
-    pProperties->Get( "xrateThreashold", xRateThreshold );
+    pProperties->Get( "xrateThreshold",  xRateThreshold );
     pProperties->Get( "rmOnBadCksum",    rmOnBadCksum );
     pProperties->Get( "continue",        continue_ );
     pProperties->Get( "cpTimeout",       cpTimeout );

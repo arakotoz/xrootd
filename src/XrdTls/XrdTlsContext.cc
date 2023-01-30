@@ -21,6 +21,7 @@
 #include <openssl/crypto.h>
 #include <openssl/err.h>
 #include <openssl/ssl.h>
+#include <openssl/opensslv.h>
 #include <sys/stat.h>
 
 #include "XrdOuc/XrdOucUtils.hh"
@@ -71,6 +72,8 @@ struct XrdTlsContextImpl
     bool                          crlRunning;
     bool                          flsRunning;
     time_t                        lastCertModTime = 0;
+    int                           sessionCacheOpts = -1;
+    std::string                   sessionCacheId;
 };
   
 /******************************************************************************/
@@ -429,7 +432,7 @@ void Fatal(std::string *eMsg, const char *msg, bool sslmsg=false)
 
 const char *GetTlsMethod(const SSL_METHOD *&meth)
 {
-#ifdef HAVE_TLS
+#if OPENSSL_VERSION_NUMBER > 0x1010000fL /* v1.1.0 */
   meth = TLS_method();
 #else
   meth = SSLv23_method();
@@ -778,7 +781,13 @@ XrdTlsContext *XrdTlsContext::Clone(bool full,bool startCRLRefresh)
 
 // Verify that the context was built
 //
-   if (xtc->isOK()) return xtc;
+   if (xtc->isOK()) {
+       if(pImpl->sessionCacheOpts != -1){
+           //A SessionCache() call was done for the current context, so apply it for this new cloned context
+           xtc->SessionCache(pImpl->sessionCacheOpts,pImpl->sessionCacheId.c_str(),pImpl->sessionCacheId.size());
+       }
+       return xtc;
+   }
 
 // We failed, cleanup.
 //
@@ -938,6 +947,9 @@ int XrdTlsContext::SessionCache(int opts, const char *id, int idlen)
    static const int doSet = scSrvr | scClnt | scOff;
    long sslopt = 0;
    int flushT = opts & scFMax;
+
+   pImpl->sessionCacheOpts = opts;
+   pImpl->sessionCacheId = id;
 
 // If initialization failed there is nothing to do
 //

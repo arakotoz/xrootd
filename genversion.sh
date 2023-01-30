@@ -13,7 +13,7 @@ EXP3='^v[0-9]+\.[0-9]+\.[0-9]+\-rc.*$'
 function getNumericVersion()
 {
   VERSION=$1
-  if test x`echo $VERSION | egrep $EXP2` == x; then
+  if test x`echo $VERSION | grep -E $EXP2` == x; then
     echo "1000000";
     return;
   fi
@@ -37,16 +37,16 @@ function getVersionFromRefs()
   VERSION="unknown"
 
   for i in ${REFS[@]}; do
-    if test x`echo $i | egrep $EXP2` != x; then
+    if test x`echo $i | grep -E $EXP2` != x; then
        echo "$i"
        return 0
     fi
 
-    if test x`echo $i | egrep $EXP1` != x; then
+    if test x`echo $i | grep -E $EXP1` != x; then
       VERSION="$i"
     fi
 
-    if test x`echo $i | egrep $EXP3` != x; then
+    if test x`echo $i | grep -E $EXP3` != x; then
       VERSION="$i"
     fi
 
@@ -184,16 +184,16 @@ else
       echo "[!] Setting the version tag to unknown" 1>&2
     else
       #-------------------------------------------------------------------------
-      # Can we match the exact tag?
+      # Can we match the exact annotated tag?
       #-------------------------------------------------------------------------
-      git describe --tags --abbrev=0 --exact-match >/dev/null 2>&1
+      git describe --abbrev=0 --exact-match >/dev/null 2>&1
+
       if test ${?} -eq 0; then
-        VERSION="`git describe --tags --abbrev=0 --exact-match`"
+        VERSION=$(git describe --abbrev=0 --exact-match)
       else
-        LOGINFO="`git log -1 --format='%ai %h'`"
-	if test ${?} -eq 0; then
-          VERSION="`getVersionFromLog $LOGINFO`"
-        fi
+        VERSION=$(git describe --abbrev=0)
+        # Append .postN with N equal to number of commits since last tag
+        VERSION="${VERSION}.post$(git rev-list ${VERSION}.. | wc -l)"
       fi
     fi
     cd $CURRENTDIR

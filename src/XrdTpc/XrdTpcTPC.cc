@@ -444,6 +444,9 @@ int TPCHandler::DetermineXferSize(CURL *curl, XrdHttpExtReq &req, State &state,
     curl_easy_setopt(curl, CURLOPT_NOBODY, 1);
     CURLcode res;
     res = curl_easy_perform(curl);
+    //Immediately set the CURLOPT_NOBODY flag to 0 as we anyway
+    //don't want the next curl call to do be a HEAD request
+    curl_easy_setopt(curl, CURLOPT_NOBODY, 0);
     if (res == CURLE_HTTP_RETURNED_ERROR) {
         std::stringstream ss;
         ss << "Remote server failed request: " << curl_easy_strerror(res);
@@ -468,13 +471,15 @@ int TPCHandler::DetermineXferSize(CURL *curl, XrdHttpExtReq &req, State &state,
     ss << "Successfully determined remote size for pull request: "
        << state.GetContentLength();
     logTransferEvent(LogMask::Debug, rec, "SIZE_SUCCESS", ss.str());
-    curl_easy_setopt(curl, CURLOPT_NOBODY, 0);
     success = true;
     return 0;
 }
 
 int TPCHandler::GetContentLengthTPCPull(CURL *curl, XrdHttpExtReq &req, uint64_t &contentLength, bool & success, TPCLogRecord &rec) {
     State state(curl);
+    //Don't forget to copy the headers of the client's request before doing the HEAD call. Otherwise, if there is a need for authentication,
+    //it will fail
+    state.CopyHeaders(req);
     int result;
     //In case we cannot get the content length, we don't return anything to the client
     if ((result = DetermineXferSize(curl, req, state, success, rec, false)) || !success) {
@@ -960,18 +965,18 @@ int TPCHandler::ProcessPullReq(const std::string &resource, XrdHttpExtReq &req) 
         }
     }
     rec.streams = streams;
-    bool hasSetOpaque;
+    bool hasSetOpaque = false;
     std::string full_url = prepareURL(req, hasSetOpaque);
     std::string authz = GetAuthz(req);
     curl_easy_setopt(curl, CURLOPT_URL, resource.c_str());
+    ConfigureCurlCA(curl);
 #ifdef XRD_CHUNK_RESP
     {
         //Get the content-length of the source file and pass it to the OSS layer
         //during the open
         uint64_t sourceFileContentLength = 0;
         bool success;
-        TPCLogRecord getContentLengthRec;
-        GetContentLengthTPCPull(curl, req, sourceFileContentLength, success, getContentLengthRec);
+        GetContentLengthTPCPull(curl, req, sourceFileContentLength, success, rec);
         if(success) {
             //In the case we cannot get the information from the source server (offline or other error)
             //we just don't add the size information to the opaque of the local file to open
@@ -999,7 +1004,6 @@ int TPCHandler::ProcessPullReq(const std::string &resource, XrdHttpExtReq &req) 
         fh->close();
         return resp_result;
     }
-    ConfigureCurlCA(curl);
     Stream stream(std::move(fh), streams * m_pipelining_multiplier, streams > 1 ? m_block_size : m_small_block_size, m_log);
     State state(0, stream, curl, false);
     state.CopyHeaders(req);

@@ -286,6 +286,41 @@ struct IssuerConfig
 
 }
 
+class OverrideINIReader: public INIReader {
+public:
+    OverrideINIReader() {};
+    inline OverrideINIReader(std::string filename) {
+        _error = ini_parse(filename.c_str(), ValueHandler, this);
+    }
+    inline OverrideINIReader(FILE *file) {
+        _error = ini_parse_file(file, ValueHandler, this);
+    }
+protected:
+    /**
+    * Override the ValueHandler function in order override previous values
+    * For example:
+    * [Issuer https://chtc.cs.wisc.edu/icecube]
+    * issuer = https://chtc.cs.wisc.edu/icecube
+    * base_path = /icecube/path1
+
+    * [Issuer https://chtc.cs.wisc.edu/icecube]
+    * issuer = https://chtc.cs.wisc.edu/icecube
+    * base_path = /icecube/path2
+    * 
+    * Will result in a configuration with base_path set to /icecube/path2
+    */
+    inline static int ValueHandler(void* user, const char* section, const char* name,
+                            const char* value) {
+        OverrideINIReader* reader = (OverrideINIReader*)user;
+        std::string key = MakeKey(section, name);
+
+        // Overwrite existing values, if they exist
+        reader->_values[key] = value;
+        reader->_sections.insert(section);
+        return 1;
+    }
+
+};
 
 class XrdAccRules
 {
@@ -1009,7 +1044,7 @@ private:
         }
         m_log.Log(LogMask::Info, "Reconfig", "Parsing configuration file:", m_cfg_file.c_str());
 
-        INIReader reader(m_cfg_file);
+        OverrideINIReader reader(m_cfg_file);
         if (reader.ParseError() < 0) {
             std::stringstream ss;
             ss << "Error opening config file (" << m_cfg_file << "): " << strerror(errno);
