@@ -9,6 +9,16 @@ set(XRDCL_LIBDIR   "${CMAKE_BINARY_DIR}/src/XrdCl")
 set(XRD_LIBDIR     "${CMAKE_BINARY_DIR}/src")
 set(XRDCL_INSTALL  "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}")
 
+## use, i.e. don't skip the full RPATH for the build tree
+#set( CMAKE_SKIP_BUILD_RPATH FALSE ) 
+## when building, don't use the install RPATH already
+## (but later on when installing)
+#set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
+#set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}")
+## add the automatically determined parts of the RPATH
+## which point to directories outside the build tree to the install RPATH
+#set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+
 if( PYPI_BUILD )
   set(XRDCL_RPATH  "$ORIGIN/${CMAKE_INSTALL_LIBDIR}")
 else()
@@ -64,13 +74,13 @@ if ( NOT ${VALID_PIP_EXIT_CODE} EQUAL 0 )
 
   # https://docs.python.org/3/install/#splitting-the-job-up
   add_custom_command(OUTPUT ${OUTPUT}
-                     COMMAND ${PYTHON_EXECUTABLE} ${SETUP_PY} --verbose build
+                     COMMAND /usr/bin/env ${XROOTD_PYBUILD_ENV} ${PYTHON_EXECUTABLE} ${SETUP_PY} --verbose build
                      DEPENDS ${DEPS})
 
   add_custom_target(python_target ALL DEPENDS ${OUTPUT} XrdCl)
 
   # Get the distribution name on Debian families
-  execute_process( COMMAND grep -i ^NAME= /etc/os-release
+  execute_process( COMMAND grep -i ^NAME=\" /etc/os-release\"
                    OUTPUT_VARIABLE DEB_DISTRO )
   STRING(REGEX REPLACE "^NAME=\"" "" DEB_DISTRO "${DEB_DISTRO}")
   STRING(REGEX REPLACE "\".*"     "" DEB_DISTRO "${DEB_DISTRO}")
