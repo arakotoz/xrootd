@@ -26,22 +26,24 @@ if "PY_CFLAGS" in cfg_vars:
   py_cflags = cfg_vars["PY_CFLAGS"]
   cfg_vars["PY_CFLAGS"] = " ".join( flag for flag in py_cflags.split() if flag not in ['-Wstrict-prototypes' ${CLANG_PROHIBITED} ] ) + " -std=c++17"
 
-ccl=cfg_vars["CC"].split()
+ccl = cfg_vars["CC"].split()
 cfg_vars["CC"] = "${CMAKE_C_COMPILER}" + " ".join( flag for flag in ccl if flag not in ['/usr/bin/cc', 'ccache', 'clang'] )
 
-cxxl=cfg_vars["CXX"].split()
+cxxl = cfg_vars["CXX"].split()
 cfg_vars["CXX"] = "${CMAKE_CXX_COMPILER}" + " ".join( flag for flag in cxxl if flag not in ['/usr/bin/c++', 'ccache', 'clang++'] )
 
 cfg_vars["PY_CXXFLAGS"] = "${CMAKE_CXX_FLAGS}"
 
 # Make the RPATH relative to the python module
-cfg_vars['LDSHARED'] = " ".join( flag for flag in cfg_vars['LDSHARED'].split() if flag not in ['/usr/bin/cc', 'ccache', 'clang'] ) + " -Wl,-rpath,${XRDCL_RPATH}"
+cshared = list(set(cfg_vars['LDSHARED'].split()))
+cfg_vars['LDSHARED'] = " ".join( flag for flag in cshared if flag not in ['/usr/bin/cc', 'ccache', 'clang', '-bundle', '-undefined', 'dynamic_lookup'] ) + " -Wl,-rpath," + "${XRDCL_RPATH}" + " -Wl,-undefined" + " -Wl,dynamic_lookup" + " -Wl,-single_module" + " -shared"
 
 print('cfg_vars["CC"] = ', cfg_vars["CC"])
 print('cfg_vars["CXX"] = ', cfg_vars["CXX"])
 print('cfg_vars["PY_CFLAGS"] = ', cfg_vars["PY_CFLAGS"])
 print('cfg_vars["PY_CPPFLAGS"] = ', cfg_vars["PY_CPPFLAGS"])
 print('cfg_vars["PY_CXXFLAGS"] = ', cfg_vars["PY_CXXFLAGS"])
+print('cshared = ', cshared)
 print('cfg_vars["LDSHARED"] = ', cfg_vars["LDSHARED"])
 
 sources = list()
