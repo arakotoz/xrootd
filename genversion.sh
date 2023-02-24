@@ -186,14 +186,14 @@ else
       #-------------------------------------------------------------------------
       # Can we match the exact annotated tag?
       #-------------------------------------------------------------------------
-      git describe --abbrev=0 --exact-match >/dev/null 2>&1
+      git describe --tags --abbrev=0 --exact-match >/dev/null 2>&1
 
       if test ${?} -eq 0; then
-        VERSION=$(git describe --abbrev=0 --exact-match)
+        VERSION=$(git describe --tags --abbrev=0 --exact-match)
       else
-        VERSION=$(git describe --abbrev=0)
+        VERSION=$(git describe --tags --abbrev=0)
         # Append .postN with N equal to number of commits since last tag
-        VERSION="${VERSION}.post$(git rev-list ${VERSION}.. | wc -l)"
+        VERSION="${VERSION}.post$(git rev-list ${VERSION}.. | wc -l | awk  '{print $1}')"
       fi
     fi
     cd $CURRENTDIR
