@@ -192,8 +192,6 @@ else
         VERSION=$(git describe --tags --abbrev=0 --exact-match)
       else
         VERSION=$(git describe --tags --abbrev=0)
-        # Append .postN with N equal to number of commits since last tag
-        VERSION="${VERSION}.post$(git rev-list ${VERSION}.. | wc -l | awk  '{print $1}')"
       fi
     fi
     cd $CURRENTDIR
