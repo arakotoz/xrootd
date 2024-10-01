@@ -9,6 +9,8 @@
 #include "XrdVersion.hh"
 
 #include "XrdXrootd/XrdXrootdTpcMon.hh"
+#include "XrdOuc/XrdOucTUtils.hh"
+#include "XrdTpc/XrdTpcUtils.hh"
 
 #include <curl/curl.h>
 
@@ -160,6 +162,7 @@ int TPCHandler::closesocket_callback(void *clientp, curl_socket_t fd) {
 // We need to utilize the full URL (including the query string), not just the
 // resource name.  The query portion is hidden in the `xrd-http-query` header;
 // we take this out and combine it with the resource name.
+// We also append the value of the headers configured in tpc.header2cgi to the resource full URL
 //
 // One special key is `authz`; this is always stripped out and copied to the Authorization
 // header (which will later be used for XrdSecEntity).  The latter copy is only done if
@@ -167,36 +170,11 @@ int TPCHandler::closesocket_callback(void *clientp, curl_socket_t fd) {
 //
 // hasSetOpaque will be set to true if at least one opaque data has been set in the URL that is returned,
 // false otherwise
-static std::string prepareURL(XrdHttpExtReq &req, bool & hasSetOpaque) {
-    std::map<std::string, std::string>::const_iterator iter = req.headers.find("xrd-http-query");
-    if (iter == req.headers.end() || iter->second.empty()) {return req.resource;}
-
-    auto has_authz_header = req.headers.find("authorization") != req.headers.end();
-
-    std::istringstream requestStream(iter->second);
-    std::string token;
-    std::stringstream result;
-    bool found_first_header = false;
-    while (std::getline(requestStream, token, '&')) {
-        if (token.empty()) {
-            continue;
-        } else if (!strncmp(token.c_str(), "authz=", 6)) {
-            if (!has_authz_header) {
-                req.headers["authorization"] = token.substr(6);
-                has_authz_header = true;
-            }
-        } else if (!found_first_header) {
-            result << "?" << token;
-            found_first_header = true;
-        } else {
-            result << "&" << token;
-        }
-    }
-    hasSetOpaque = found_first_header;
-    return req.resource + result.str().c_str();
+std::string TPCHandler::prepareURL(XrdHttpExtReq &req, bool & hasSetOpaque) {
+  return XrdTpcUtils::prepareOpenURL(req.resource, req.headers,hdr2cgimap,hasSetOpaque);
 }
 
-static std::string prepareURL(XrdHttpExtReq &req) {
+std::string TPCHandler::prepareURL(XrdHttpExtReq &req) {
     bool foundHeader;
     return prepareURL(req,foundHeader);
 }
@@ -291,19 +269,19 @@ int TPCHandler::ProcessReq(XrdHttpExtReq &req) {
     if (req.verb == "OPTIONS") {
         return ProcessOptionsReq(req);
     }
-    auto header = req.headers.find("credential");
+    auto header = XrdOucTUtils::caseInsensitiveFind(req.headers,"credential");
     if (header != req.headers.end()) {
         if (header->second != "none") {
             m_log.Emsg("ProcessReq", "COPY requested an unsupported credential type: ", header->second.c_str());
             return req.SendSimpleResp(400, NULL, NULL, "COPY requestd an unsupported Credential type", 0);
         }
     }
-    header = req.headers.find("source");
+    header = XrdOucTUtils::caseInsensitiveFind(req.headers,"source");
     if (header != req.headers.end()) {
         std::string src = PrepareURL(header->second);
         return ProcessPullReq(src, req);
     }
-    header = req.headers.find("destination");
+    header = XrdOucTUtils::caseInsensitiveFind(req.headers,"destination");
     if (header != req.headers.end()) {
         return ProcessPushReq(header->second, req);
     }
@@ -359,7 +337,7 @@ int TPCHandler::ProcessOptionsReq(XrdHttpExtReq &req) {
   
 std::string TPCHandler::GetAuthz(XrdHttpExtReq &req) {
     std::string authz;
-    auto authz_header = req.headers.find("authorization");
+    auto authz_header = XrdOucTUtils::caseInsensitiveFind(req.headers,"authorization");
     if (authz_header != req.headers.end()) {
         char * quoted_url = quote(authz_header->second.c_str());
         std::stringstream ss;
@@ -893,7 +871,7 @@ int TPCHandler::ProcessPushReq(const std::string & resource, XrdHttpExtReq &req)
     curl_easy_setopt(curl, CURLOPT_SOCKOPTFUNCTION, sockopt_callback);
     curl_easy_setopt(curl, CURLOPT_CLOSESOCKETDATA, &rec);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, CONNECT_TIMEOUT);
-    auto query_header = req.headers.find("xrd-http-fullresource");
+    auto query_header = XrdOucTUtils::caseInsensitiveFind(req.headers,"xrd-http-fullresource");
     std::string redirect_resource = req.resource;
     if (query_header != req.headers.end()) {
         redirect_resource = query_header->second;
@@ -986,7 +964,7 @@ int TPCHandler::ProcessPullReq(const std::string &resource, XrdHttpExtReq &req) 
         char * ip;
 
         // Get the hostname used to contact the server from the http header
-        auto host_header = req.headers.find("host");
+        auto host_header = XrdOucTUtils::caseInsensitiveFind(req.headers,"host");
         std::string host_used;
         if (host_header != req.headers.end()) {
             host_used = host_header->second;
@@ -1022,19 +1000,19 @@ int TPCHandler::ProcessPullReq(const std::string &resource, XrdHttpExtReq &req) 
         logTransferEvent(LogMask::Error, rec, "PULL_FAIL", ss.str());
         return req.SendSimpleResp(rec.status, NULL, NULL, generateClientErr(ss, rec).c_str(), 0);
     }
-    auto query_header = req.headers.find("xrd-http-fullresource");
+    auto query_header = XrdOucTUtils::caseInsensitiveFind(req.headers,"xrd-http-fullresource");
     std::string redirect_resource = req.resource;
     if (query_header != req.headers.end()) {
         redirect_resource = query_header->second;
     }
     XrdSfsFileOpenMode mode = SFS_O_CREAT;
-    auto overwrite_header = req.headers.find("overwrite");
+    auto overwrite_header = XrdOucTUtils::caseInsensitiveFind(req.headers,"overwrite");
     if ((overwrite_header == req.headers.end()) || (overwrite_header->second == "T")) {
         if (! usingEC) mode = SFS_O_TRUNC;
     }
     int streams = 1;
     {
-        auto streams_header = req.headers.find("x-number-of-streams");
+        auto streams_header = XrdOucTUtils::caseInsensitiveFind(req.headers,"x-number-of-streams");
         if (streams_header != req.headers.end()) {
             int stream_req = -1;
             try {

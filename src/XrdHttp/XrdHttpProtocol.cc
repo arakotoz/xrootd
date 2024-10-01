@@ -42,6 +42,8 @@
 
 #include "XrdTls/XrdTls.hh"
 #include "XrdTls/XrdTlsContext.hh"
+#include "XrdOuc/XrdOucUtils.hh"
+#include "XrdOuc/XrdOucPrivateUtils.hh"
 
 #include <openssl/err.h>
 #include <openssl/ssl.h>
@@ -51,6 +53,7 @@
 #include <cctype>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <algorithm>
 
 #define XRHTTP_TK_GRACETIME     600
 
@@ -66,8 +69,8 @@ const char *XrdHttpSecEntityTident = "http";
 // Static stuff
 //
 
-int XrdHttpProtocol::hailWait = 0;
-int XrdHttpProtocol::readWait = 0;
+int XrdHttpProtocol::hailWait = 60000;
+int XrdHttpProtocol::readWait = 300000;
 int XrdHttpProtocol::Port = 1094;
 char *XrdHttpProtocol::Port_str = 0;
 
@@ -113,7 +116,6 @@ XrdNetPMark * XrdHttpProtocol::pmarkHandle = nullptr;
 XrdHttpChecksumHandler XrdHttpProtocol::cksumHandler = XrdHttpChecksumHandler();
 XrdHttpReadRangeHandler::Configuration XrdHttpProtocol::ReadRangeConfig;
 bool XrdHttpProtocol::tpcForwardCreds = false;
-bool XrdHttpProtocol::keepHeaderCase = false;
 
 XrdSysTrace XrdHttpTrace("http");
 
@@ -312,7 +314,6 @@ char *XrdHttpProtocol::GetClientIPStr() {
 
   return strdup(buf);
 }
-
 
 // Various routines for handling XrdLink as BIO objects within OpenSSL.
 #if OPENSSL_VERSION_NUMBER < 0x1000105fL
@@ -615,8 +616,11 @@ int XrdHttpProtocol::Process(XrdLink *lp) // We ignore the argument here
 
     // Read as many lines as possible into the buffer. An empty line breaks
     while ((rc = BuffgetLine(tmpline)) > 0) {
-      TRACE(DEBUG, " rc:" << rc << " got hdr line: " << tmpline.c_str());
-
+      if (TRACING(TRACE_DEBUG)) {
+        std::string traceLine{tmpline.c_str()};
+        traceLine = obfuscateAuth(traceLine);
+        TRACE(DEBUG, " rc:" << rc << " got hdr line: " << traceLine);
+      }
       if ((rc == 2) && (tmpline.length() > 1) && (tmpline[rc - 1] == '\n')) {
         CurrentReq.headerok = true;
         TRACE(DEBUG, " rc:" << rc << " detected header end.");
@@ -1073,7 +1077,6 @@ int XrdHttpProtocol::Config(const char *ConfigFN, XrdOucEnv *myEnv) {
       else if TS_Xeq("httpsmode", xhttpsmode);
       else if TS_Xeq("tlsreuse", xtlsreuse);
       else if TS_Xeq("auth", xauth);
-      else if TS_Xeq("keepheadercase", xkeepheadercase);
       else {
         eDest.Say("Config warning: ignoring unknown directive '", var, "'.");
         Config.Echo();
@@ -1575,6 +1578,7 @@ int XrdHttpProtocol::StartSimpleResp(int code, const char *desc, const char *hea
     else if (code == 405) ss << "Method Not Allowed";
     else if (code == 416) ss << "Range Not Satisfiable";
     else if (code == 500) ss << "Internal Server Error";
+    else if (code == 502) ss << "Bad Gateway";
     else if (code == 504) ss << "Gateway Timeout";
     else ss << "Unknown";
   }
@@ -1707,8 +1711,6 @@ int XrdHttpProtocol::Configure(char *parms, XrdProtocol_Config * pi) {
   //  SI = new XrdXrootdStats(pi->Stats);
   Sched = pi->Sched;
   BPool = pi->BPool;
-  hailWait = 10000;
-  readWait = 30000;
   xrd_cslist = getenv("XRD_CSLIST");
 
   Port = pi->Port;
@@ -1758,6 +1760,62 @@ int XrdHttpProtocol::Configure(char *parms, XrdProtocol_Config * pi) {
   return 1;
 }
 
+/******************************************************************************/
+/*                   p a r s e H e a d e r 2 C G I                            */
+/******************************************************************************/
+int XrdHttpProtocol::parseHeader2CGI(XrdOucStream &Config, XrdSysError & err,std::map<std::string, std::string> &header2cgi) {
+  char *val, keybuf[1024], parmbuf[1024];
+  char *parm;
+
+  // Get the header key
+  val = Config.GetWord();
+  if (!val || !val[0]) {
+    err.Emsg("Config", "No headerkey specified.");
+    return 1;
+  } else {
+
+    // Trim the beginning, in place
+    while ( *val && !isalnum(*val) ) val++;
+    strcpy(keybuf, val);
+
+    // Trim the end, in place
+    char *pp;
+    pp = keybuf + strlen(keybuf) - 1;
+    while ( (pp >= keybuf) && (!isalnum(*pp)) ) {
+      *pp = '\0';
+      pp--;
+    }
+
+    parm = Config.GetWord();
+
+    // Avoids segfault in case a key is given without value
+    if(!parm || !parm[0]) {
+      err.Emsg("Config", "No header2cgi value specified. key: '", keybuf, "'");
+      return 1;
+    }
+
+    // Trim the beginning, in place
+    while ( *parm && !isalnum(*parm) ) parm++;
+    strcpy(parmbuf, parm);
+
+    // Trim the end, in place
+    pp = parmbuf + strlen(parmbuf) - 1;
+    while ( (pp >= parmbuf) && (!isalnum(*pp)) ) {
+      *pp = '\0';
+      pp--;
+    }
+
+    // Add this mapping to the map that will be used
+    try {
+      header2cgi[keybuf] = parmbuf;
+    } catch ( ... ) {
+      err.Emsg("Config", "Can't insert new header2cgi rule. key: '", keybuf, "'");
+      return 1;
+    }
+
+  }
+  return 0;
+}
 
 
 /******************************************************************************/
@@ -2667,54 +2725,7 @@ int XrdHttpProtocol::xexthandler(XrdOucStream &Config,
  */
 
 int XrdHttpProtocol::xheader2cgi(XrdOucStream & Config) {
-  char *val, keybuf[1024], parmbuf[1024];
-  char *parm;
-  
-  // Get the path
-  //
-  val = Config.GetWord();
-  if (!val || !val[0]) {
-    eDest.Emsg("Config", "No headerkey specified.");
-    return 1;
-  } else {
-    
-    // Trim the beginning, in place
-    while ( *val && !isalnum(*val) ) val++;
-    strcpy(keybuf, val);
-    
-    // Trim the end, in place
-    char *pp;
-    pp = keybuf + strlen(keybuf) - 1;
-    while ( (pp >= keybuf) && (!isalnum(*pp)) ) {
-      *pp = '\0';
-      pp--;
-    }
-    
-    parm = Config.GetWord();
-    
-    // Trim the beginning, in place
-    while ( *parm && !isalnum(*parm) ) parm++;
-    strcpy(parmbuf, parm);
-    
-    // Trim the end, in place
-    pp = parmbuf + strlen(parmbuf) - 1;
-    while ( (pp >= parmbuf) && (!isalnum(*pp)) ) {
-      *pp = '\0';
-      pp--;
-    }
-    
-    // Add this mapping to the map that will be used
-    try {
-      hdr2cgimap[keybuf] = parmbuf;
-    } catch ( ... ) {
-      eDest.Emsg("Config", "Can't insert new header2cgi rule. key: '", keybuf, "'");
-      return 1;
-    }
-    
-  }
-  
-  
-  return 0;
+  return parseHeader2CGI(Config,eDest,hdr2cgimap);
 }
 
 /******************************************************************************/
@@ -2840,19 +2851,6 @@ int XrdHttpProtocol::xauth(XrdOucStream &Config) {
     } else {
       eDest.Emsg("Config", "http.auth value is invalid"); return 1;
     }
-  }
-  return 0;
-}
-
-int XrdHttpProtocol::xkeepheadercase(XrdOucStream &Config) {
-  char *val = Config.GetWord();
-  if (!val || !val[0])
-  {eDest.Emsg("Config", "keepheadercase argument not specified"); return 1;}
-
-  if(!strcmp("yes",val)) {
-    keepHeaderCase = true;
-  } else {
-    keepHeaderCase = false;
   }
   return 0;
 }

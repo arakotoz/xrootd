@@ -59,6 +59,7 @@ jobs:
           make \
           openssl \
           openssl-dev \
+          procps \
           py3-pip \
           py3-setuptools \
           py3-wheel \
@@ -93,13 +94,28 @@ jobs:
     container: centos:7
 
     env:
+      ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+      ACTIONS_RUNNER_FORCE_ACTIONS_NODE_VERSION: node16
       CMAKE_ARGS: "-DCMAKE_INSTALL_PREFIX=/usr;-DCMAKE_INSTALL_RPATH='$ORIGIN/../$LIB'"
 
     steps:
+    - name: Use CentOS 7 Vault Repository URLs
+      run: |
+        sed -i -e '/mirrorlist/d' \
+               -e 's/# \?baseurl=/baseurl=/g' \
+               -e 's/mirror.centos.org/vault.centos.org/g' \
+               -e 's/$releasever/7.9.2009/g' \
+               /etc/yum.repos.d/*.repo
+        yum install -y centos-release-scl epel-release
+        sed -i -e '/mirrorlist/d' \
+               -e 's/# \?baseurl=/baseurl=/g' \
+               -e 's/mirror.centos.org/vault.centos.org/g' \
+               -e 's/$releasever/7.9.2009/g' \
+               /etc/yum.repos.d/*.repo
+
     - name: Install dependencies
       run: |
-        yum install -y centos-release-scl epel-release git
-        yum install -y epel-rpm-macros rpmdevtools sudo yum-utils
+        yum install -y epel-rpm-macros git rpmdevtools sudo yum-utils
 
     - name: Clone repository
       uses: actions/checkout@v3
@@ -283,10 +299,7 @@ jobs:
       run: sudo sed -i -e "s/localhost/localhost $(hostname)/g" /etc/hosts
 
     - name: Install dependencies with Homebrew
-      run: brew install davix googletest isa-l
-
-    - name: Install Python dependencies with pip
-      run: python3 -m pip install --upgrade pip setuptools wheel
+      run: brew install davix googletest python-setuptools
 
     - name: Clone repository
       uses: actions/checkout@v4

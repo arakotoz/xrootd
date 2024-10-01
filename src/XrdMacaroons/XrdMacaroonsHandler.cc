@@ -15,6 +15,8 @@
 
 #include "XrdMacaroonsHandler.hh"
 
+#include "XrdOuc/XrdOucTUtils.hh"
+
 using namespace Macaroons;
 
 
@@ -202,7 +204,11 @@ int Handler::ProcessOAuthConfig(XrdHttpExtReq &req) {
     {
         return req.SendSimpleResp(405, NULL, NULL, "Only GET is valid for oauth config.", 0);
     }
+<<<<<<< HEAD
     auto header = req.headers.find("host");
+=======
+    auto header = XrdOucTUtils::caseInsensitiveFind(req.headers,"host");
+>>>>>>> 98f0c77fb8a0e0fc673f66c35456d69929487dd0
     if (header == req.headers.end())
     {
         return req.SendSimpleResp(400, NULL, NULL, "Host header is required.", 0);
@@ -235,7 +241,11 @@ int Handler::ProcessTokenRequest(XrdHttpExtReq &req)
     {
         return req.SendSimpleResp(405, NULL, NULL, "Only POST is valid for token request.", 0);
     }
+<<<<<<< HEAD
     auto header = req.headers.find("content-type");
+=======
+    auto header = XrdOucTUtils::caseInsensitiveFind(req.headers,"content-type");
+>>>>>>> 98f0c77fb8a0e0fc673f66c35456d69929487dd0
     if (header == req.headers.end())
     {
         return req.SendSimpleResp(400, NULL, NULL, "Content-Type missing; not a valid macaroon request?", 0);
@@ -368,7 +378,11 @@ int Handler::ProcessReq(XrdHttpExtReq &req)
         return ProcessTokenRequest(req);
     }
 
+<<<<<<< HEAD
     auto header = req.headers.find("content-type");
+=======
+    auto header = XrdOucTUtils::caseInsensitiveFind(req.headers,"content-type");
+>>>>>>> 98f0c77fb8a0e0fc673f66c35456d69929487dd0
     if (header == req.headers.end())
     {
         return req.SendSimpleResp(400, NULL, NULL, "Content-Type missing; not a valid macaroon request?", 0);
@@ -377,7 +391,11 @@ int Handler::ProcessReq(XrdHttpExtReq &req)
     {
         return req.SendSimpleResp(400, NULL, NULL, "Content-Type must be set to `application/macaroon-request' to request a macaroon", 0);
     }
+<<<<<<< HEAD
     header = req.headers.find("content-length");
+=======
+    header = XrdOucTUtils::caseInsensitiveFind(req.headers,"content-length");
+>>>>>>> 98f0c77fb8a0e0fc673f66c35456d69929487dd0
     if (header == req.headers.end())
     {
         return req.SendSimpleResp(400, NULL, NULL, "Content-Length missing; not a valid POST", 0);

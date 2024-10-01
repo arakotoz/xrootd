@@ -33,7 +33,10 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <string>
-  
+#include <unordered_set>
+#include <vector>
+#include <regex>
+
 class XrdSysError;
 class XrdOucString;
 class XrdOucStream;
@@ -76,6 +79,8 @@ static int   GidName(gid_t gID, char *gName, int gNsz, time_t keepT=0);
 static int   GroupName(gid_t gID, char *gName, int gNsz);
 
 static const char *i2bstr(char *buff, int blen, int val, bool pad=false);
+
+static const char *HSize(size_t bytes, char* buff, int bsz);
 
 static char *Ident(long long  &mySID, char *iBuff, int iBlen,
                    const char *iHost, const char *iProg, const char *iName,
@@ -135,5 +140,6 @@ static void trim(std::string & str);
 
     XrdOucUtils() {}
     ~XrdOucUtils() {}
+
 };
 #endif

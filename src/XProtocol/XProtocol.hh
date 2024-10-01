@@ -682,8 +682,10 @@ struct read_list {
    kXR_int64 offset;
 };
 static const int rlItemLen = sizeof(read_list);
-static const int maxRvecln = 16384;
-static const int maxRvecsz = maxRvecln/rlItemLen;
+static const int maxRvecln = 16384;               // Max read vector length
+static const int maxRvecsz = maxRvecln/rlItemLen; // Max number of elements
+static const int minRVbsz  = 2097152;             // 2MB minimum buffer size
+static const int maxRVdsz  = minRVbsz-rlItemLen;  // Max amount of data to xfer
 }
 
 /******************************************************************************/
@@ -1153,6 +1155,7 @@ typedef struct ServerResponseReqs_Protocol secReqs;
 //
 #define kXR_isManager     0x00000002
 #define kXR_isServer      0x00000001
+#define kXR_attrCache     0x00000080
 #define kXR_attrMeta      0x00000100
 #define kXR_attrProxy     0x00000200
 #define kXR_attrSuper     0x00000400
@@ -1368,6 +1371,8 @@ static int mapError(int rc)
            case ENOSPC:        return kXR_NoSpace;
            case ENAMETOOLONG:  return kXR_ArgTooLong;
            case ENETUNREACH:   return kXR_noserver;
+           case EHOSTUNREACH:  return kXR_noserver;
+           case ECONNREFUSED:  return kXR_noserver;
            case ENOTBLK:       return kXR_NotFile;
            case ENOTSUP:       return kXR_Unsupported;
            case EISDIR:        return kXR_isDirectory;

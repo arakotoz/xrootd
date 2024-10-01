@@ -64,7 +64,7 @@ namespace PyXRootD
     pystatus = ConvertType<XrdCl::XRootDStatus>( &status );
     PyObject *o = ( callback && callback != Py_None ) ?
             Py_BuildValue( "O", pystatus ) :
-            Py_BuildValue( "OO", pystatus, Py_BuildValue( "" ) );
+            Py_BuildValue( "ON", pystatus, Py_BuildValue( "" ) );
     Py_DECREF( pystatus );
     return o;
   }
@@ -95,7 +95,7 @@ namespace PyXRootD
     pystatus = ConvertType<XrdCl::XRootDStatus>( &status );
     PyObject *o = ( callback && callback != Py_None ) ?
             Py_BuildValue( "O", pystatus ) :
-            Py_BuildValue( "OO", pystatus, Py_BuildValue( "" ) );
+            Py_BuildValue( "ON", pystatus, Py_BuildValue( "" ) );
     Py_DECREF( pystatus );
     return o;
   }
@@ -159,7 +159,7 @@ namespace PyXRootD
 
     unsigned long long tmp_offset = 0;
     unsigned int tmp_size = 0;
-    unsigned int tmp_timeout = 0;
+    unsigned long long tmp_timeout = 0;
 
     if ( py_offset && PyObjToUllong( py_offset, &tmp_offset, "offset" ) )
       return NULL;
@@ -167,7 +167,7 @@ namespace PyXRootD
     if ( py_size && PyObjToUint(py_size, &tmp_size, "size" ) )
       return NULL;
 
-    if ( py_timeout && PyObjToUint(py_timeout, &tmp_timeout, "timeout" ) )
+    if ( py_timeout && PyObjToUllong(py_timeout, &tmp_timeout, "timeout" ) )
       return NULL;
 
     offset = (uint64_t)tmp_offset;
@@ -254,12 +254,12 @@ namespace PyXRootD
     if ( size < chunksize ) chunksize = size;
 
     uint64_t off_end = offset + size;
-    XrdCl::Buffer* chunk = new XrdCl::Buffer();
-    XrdCl::Buffer* line = new XrdCl::Buffer();
+    std::unique_ptr<XrdCl::Buffer> chunk;
+    std::unique_ptr<XrdCl::Buffer> line = std::make_unique<XrdCl::Buffer>();
 
     while ( offset < off_end )
     {
-      chunk = self->ReadChunk( self, offset, chunksize );
+      chunk.reset( self->ReadChunk( self, offset, chunksize ) );
       offset += chunk->GetSize();
 
       // Reached end of file
@@ -300,8 +300,6 @@ namespace PyXRootD
     else
       pyline = PyUnicode_FromString( "" );
 
-    delete line;
-    delete chunk;
     return pyline;
   }
 
@@ -350,6 +348,7 @@ namespace PyXRootD
         break;
 
       PyList_Append( lines, line );
+      Py_DECREF( line );
     }
 
     return lines;
@@ -406,7 +405,7 @@ namespace PyXRootD
 
     if ( PyType_Ready( &ChunkIteratorType ) < 0 ) return NULL;
 
-    args = Py_BuildValue( "OOO", self, Py_BuildValue("k", offset),
+    args = Py_BuildValue( "ONN", self, Py_BuildValue("k", offset),
                                        Py_BuildValue("I", chunksize) );
     iterator = (ChunkIterator*)
                PyObject_CallObject( (PyObject *) &ChunkIteratorType, args );
@@ -440,7 +439,7 @@ namespace PyXRootD
 
     unsigned long long tmp_offset = 0;
     unsigned int tmp_size = 0;
-    unsigned int tmp_timeout = 0;
+    unsigned long long tmp_timeout = 0;
 
     if (py_offset && PyObjToUllong(py_offset, &tmp_offset, "offset"))
       return NULL;
@@ -448,7 +447,7 @@ namespace PyXRootD
     if (py_size && PyObjToUint(py_size, &tmp_size, "size"))
       return NULL;
 
-    if (py_timeout && PyObjToUint(py_timeout, &tmp_timeout, "timeout"))
+    if (py_timeout && PyObjToUllong(py_timeout, &tmp_timeout, "timeout"))
       return NULL;
 
     offset = (uint64_t)tmp_offset;
@@ -472,7 +471,7 @@ namespace PyXRootD
     pystatus = ConvertType<XrdCl::XRootDStatus>( &status );
     PyObject *o = ( callback && callback != Py_None ) ?
             Py_BuildValue( "O", pystatus ) :
-            Py_BuildValue( "OO", pystatus, Py_BuildValue( "" ) );
+            Py_BuildValue( "ON", pystatus, Py_BuildValue( "" ) );
     Py_DECREF( pystatus );
     return o;
   }
@@ -504,7 +503,7 @@ namespace PyXRootD
     pystatus = ConvertType<XrdCl::XRootDStatus>( &status );
     PyObject *o = ( callback && callback != Py_None ) ?
             Py_BuildValue( "O", pystatus ) :
-            Py_BuildValue( "OO", pystatus, Py_BuildValue( "" ) );
+            Py_BuildValue( "ON", pystatus, Py_BuildValue( "" ) );
     Py_DECREF( pystatus );
     return o;
   }
@@ -527,12 +526,12 @@ namespace PyXRootD
          (char**) kwlist, &py_size, &py_timeout, &callback ) ) return NULL;
 
     unsigned long long tmp_size = 0;
-    unsigned int tmp_timeout = 0;
+    unsigned long long tmp_timeout = 0;
 
     if ( py_size && PyObjToUllong( py_size, &tmp_size, "size" ) )
       return NULL;
 
-    if ( py_timeout && PyObjToUint( py_timeout, &tmp_timeout, "timeout" ) )
+    if ( py_timeout && PyObjToUllong( py_timeout, &tmp_timeout, "timeout" ) )
       return NULL;
 
     size = (uint64_t)tmp_size;
@@ -551,7 +550,7 @@ namespace PyXRootD
     pystatus = ConvertType<XrdCl::XRootDStatus>( &status );
     PyObject *o = ( callback && callback != Py_None ) ?
             Py_BuildValue( "O", pystatus ) :
-            Py_BuildValue( "OO", pystatus, Py_BuildValue( "" ) );
+            Py_BuildValue( "ON", pystatus, Py_BuildValue( "" ) );
     Py_DECREF( pystatus );
     return o;
   }
@@ -575,9 +574,9 @@ namespace PyXRootD
     if ( !PyArg_ParseTupleAndKeywords( args, kwds, "O|OO:vector_read",
          (char**) kwlist, &pychunks, &py_timeout, &callback ) ) return NULL;
 
-    unsigned int tmp_timeout = 0;
+    unsigned long long tmp_timeout = 0;
 
-    if ( py_timeout && PyObjToUint( py_timeout, &tmp_timeout, "timeout" ) )
+    if ( py_timeout && PyObjToUllong( py_timeout, &tmp_timeout, "timeout" ) )
       return NULL;
 
     timeout = (time_t)tmp_timeout;
@@ -586,6 +585,17 @@ namespace PyXRootD
       PyErr_SetString( PyExc_TypeError, "chunks parameter must be a list" );
       return NULL;
     }
+
+    struct chunkGuard {
+      chunkGuard(XrdCl::ChunkList &c) : c_(&c) { }
+      ~chunkGuard() {
+        if (c_)
+          std::for_each(c_->begin(), c_->end(), [](XrdCl::ChunkInfo &ci) { delete[] (char*)ci.buffer; });
+      }
+      void disarm() { c_ = nullptr; }
+
+       XrdCl::ChunkList *c_;
+    } cg(chunks);
 
     for ( int i = 0; i < PyList_Size( pychunks ); ++i ) {
       PyObject *chunk = PyList_GetItem( pychunks, i );
@@ -616,11 +626,13 @@ namespace PyXRootD
       XrdCl::ResponseHandler *handler
           = GetHandler<XrdCl::VectorReadInfo>( callback );
       if ( !handler ) return NULL;
+      cg.disarm(); // handler will call ConvertType and free chunk buffers
       async( status = self->file->VectorRead( chunks, 0, handler, timeout ) );
     }
     else {
       XrdCl::VectorReadInfo *info = 0;
       async( status = self->file->VectorRead( chunks, 0, info, timeout ) );
+      cg.disarm(); // ConvertType will free chunk buffers
       pyresponse = ConvertType<XrdCl::VectorReadInfo>( info );
       delete info;
     }

@@ -56,6 +56,7 @@
 #include <string>
 #include "XrdOuc/XrdOucTUtils.hh"
 #include "XrdOuc/XrdOucUtils.hh"
+#include "XrdOuc/XrdOucPrivateUtils.hh"
 
 #include "XrdHttpUtils.hh"
 
@@ -167,7 +168,7 @@ int XrdHttpReq::parseLine(char *line, int len) {
     // The value is val
     
     // Screen out the needed header lines
-    if (!strcmp(key, "connection")) {
+    if (!strcasecmp(key, "connection")) {
 
       if (!strcasecmp(val, "Keep-Alive\r\n")) {
         keepalive = true;
@@ -175,36 +176,36 @@ int XrdHttpReq::parseLine(char *line, int len) {
         keepalive = false;
       }
 
-    } else if (!strcmp(key, "host")) {
+    } else if (!strcasecmp(key, "host")) {
       parseHost(val);
-    } else if (!strcmp(key, "range")) {
+    } else if (!strcasecmp(key, "range")) {
       // (rfc2616 14.35.1) says if Range header contains any range
       // which is syntactically invalid the Range header should be ignored.
       // Therefore no need for the range handler to report an error.
       readRangeHandler.ParseContentRange(val);
-    } else if (!strcmp(key, "content-length")) {
+    } else if (!strcasecmp(key, "content-length")) {
       length = atoll(val);
 
-    } else if (!strcmp(key, "destination")) {
+    } else if (!strcasecmp(key, "destination")) {
       destination.assign(val, line+len-val);
       trim(destination);
-    } else if (!strcmp(key, "want-digest")) {
+    } else if (!strcasecmp(key, "want-digest")) {
       m_req_digest.assign(val, line + len - val);
       trim(m_req_digest);
       //Transform the user requests' want-digest to lowercase
       std::transform(m_req_digest.begin(),m_req_digest.end(),m_req_digest.begin(),::tolower);
-    } else if (!strcmp(key, "depth")) {
+    } else if (!strcasecmp(key, "depth")) {
       depth = -1;
       if (strcmp(val, "infinity"))
         depth = atoll(val);
 
-    } else if (!strcmp(key, "expect") && strstr(val, "100-continue")) {
+    } else if (!strcasecmp(key, "expect") && strstr(val, "100-continue")) {
       sendcontinue = true;
-    } else if (!strcmp(key, "te") && strstr(val, "trailers")) {
+    } else if (!strcasecmp(key, "te") && strstr(val, "trailers")) {
       m_trailer_headers = true;
-    } else if (!strcmp(key, "transfer-encoding") && strstr(val, "chunked")) {
+    } else if (!strcasecmp(key, "transfer-encoding") && strstr(val, "chunked")) {
       m_transfer_encoding_chunked = true; 
-    } else if (!strcmp(key, "x-transfer-status") && strstr(val, "true")) {
+    } else if (!strcasecmp(key, "x-transfer-status") && strstr(val, "true")) {
       m_transfer_encoding_chunked = true;
       m_status_trailer = true;
     } else if (!strcasecmp(key, "scitag")) {
@@ -626,8 +627,9 @@ bool XrdHttpReq::Redir(XrdXrootd::Bridge::Context &info, //!< the result context
   else
     prot->SendSimpleResp(302, NULL, (char *) redirdest.c_str(), 0, 0, keepalive);
   
+  bool ret_keepalive = keepalive; // reset() clears keepalive
   reset();
-  return false;
+  return ret_keepalive;
 };
 
 
@@ -911,6 +913,9 @@ void XrdHttpReq::mapXrdErrorToHttpStatus() {
       case kXR_InvalidRequest:
         httpStatusCode = 405; httpStatusText = "Method is not allowed";
         break;
+      case kXR_noserver:
+        httpStatusCode = 502; httpStatusText = "Bad Gateway";
+        break;
       case kXR_TimerExpired:
         httpStatusCode = 504; httpStatusText = "Gateway timeout";
         break;
@@ -945,9 +950,15 @@ int XrdHttpReq::ProcessHTTPReq() {
 
     char *q = quote(hdr2cgistr.c_str());
     resourceplusopaque.append(q);
-    TRACEI(DEBUG, "Appended header fields to opaque info: '" 
-                 << hdr2cgistr.c_str() << "'");
+    if (TRACING(TRACE_DEBUG)) {
+      // The obfuscation of "authz" will only be done if the server http.header2cgi config contains something that maps a header to this "authz" cgi.
+      // Unfortunately the obfuscation code will be called no matter what is configured in http.header2cgi.
+      std::string header2cgistrObf = obfuscateAuth(hdr2cgistr);
 
+      TRACEI(DEBUG, "Appended header fields to opaque info: '"
+        << header2cgistrObf.c_str() << "'");
+
+    }
     // We assume that anything appended to the CGI str should also
     // apply to the destination in case of a MOVE.
     if (strchr(destination.c_str(), '?')) destination.append("&");
@@ -1027,6 +1038,7 @@ int XrdHttpReq::ProcessHTTPReq() {
     }
     case XrdHttpReq::rtGET:
     {
+        int retval = keepalive ? 1 : -1; // reset() clears keepalive
 
         if (resource.beginswith("/static/")) {
 
@@ -1045,12 +1057,12 @@ int XrdHttpReq::ProcessHTTPReq() {
                 if (resource == "/static/css/xrdhttp.css") {
                     prot->SendSimpleResp(200, NULL, NULL, (char *) static_css_xrdhttp_css, static_css_xrdhttp_css_len, keepalive);
                     reset();
-                    return keepalive ? 1 : -1;
+                    return retval;
                   }
                 if (resource == "/static/icons/xrdhttp.ico") {
                     prot->SendSimpleResp(200, NULL, NULL, (char *) favicon_ico, favicon_ico_len, keepalive);
                     reset();
-                    return keepalive ? 1 : -1;
+                    return retval;
                   }
 
               }
@@ -1080,7 +1092,7 @@ int XrdHttpReq::ProcessHTTPReq() {
                     if (mydata) {
                       prot->SendSimpleResp(200, NULL, NULL, (char *) mydata->data, mydata->len, keepalive);
                       reset();
-                      return keepalive ? 1 : -1;
+                      return retval;
                     }
                   }
                   
@@ -1498,8 +1510,9 @@ int XrdHttpReq::ProcessHTTPReq() {
     case XrdHttpReq::rtOPTIONS:
     {
       prot->SendSimpleResp(200, NULL, (char *) "DAV: 1\r\nDAV: <http://apache.org/dav/propset/fs/1>\r\nAllow: HEAD,GET,PUT,PROPFIND,DELETE,OPTIONS", NULL, 0, keepalive);
+      bool ret_keepalive = keepalive; // reset() clears keepalive
       reset();
-      return  keepalive ? 1 : -1;
+      return ret_keepalive ? 1 : -1;
     }
     case XrdHttpReq::rtDELETE:
     {
@@ -1841,8 +1854,9 @@ int XrdHttpReq::PostProcessHTTPReq(bool final_) {
         }
 
         prot->SendSimpleResp(httpStatusCode, NULL, NULL, NULL, 0, keepalive);
+        bool ret_keepalive = keepalive; // reset() clears keepalive
         reset();
-        return keepalive ? 1 : -1;
+        return ret_keepalive ? 1 : -1;
       } else { // We requested a checksum and now have its response.
         if (iovN > 0) {
           std::string response_headers;
